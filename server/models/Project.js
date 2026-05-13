@@ -20,6 +20,17 @@ const Project = sequelize.define('Project', {
   color: {
     type: DataTypes.STRING,
     defaultValue: '#6366f1'
+  },
+  type: {
+    type: DataTypes.ENUM('software', 'marketing', 'design', 'operations', 'custom'),
+    defaultValue: 'custom'
+  },
+  deadline: {
+    type: DataTypes.DATE
+  },
+  status: {
+    type: DataTypes.ENUM('Not Started', 'In Progress', 'Done'),
+    defaultValue: 'Not Started'
   }
 });
 

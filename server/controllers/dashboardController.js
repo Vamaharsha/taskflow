@@ -42,9 +42,23 @@ const getDashboard = async (req, res, next) => {
     const mediumPriority = await Task.count({ where: { ...taskWhere, priority: 'medium', status: { [Op.ne]: 'done' } } });
     const lowPriority = await Task.count({ where: { ...taskWhere, priority: 'low', status: { [Op.ne]: 'done' } } });
 
-    let projectCount;
+    let projectCount = 0;
+    let projectsNotStarted = 0;
+    let projectsInProgress = 0;
+    let projectsDone = 0;
+    let recentActivity = [];
+
     if (isAdmin) {
       projectCount = await Project.count();
+      projectsNotStarted = await Project.count({ where: { status: 'Not Started' } });
+      projectsInProgress = await Project.count({ where: { status: 'In Progress' } });
+      projectsDone = await Project.count({ where: { status: 'Done' } });
+      
+      recentActivity = await Project.findAll({
+        order: [['updatedAt', 'DESC']],
+        limit: 5,
+        attributes: ['id', 'name', 'status', 'type', 'updatedAt']
+      });
     } else {
       projectCount = await ProjectMember.count({ where: { userId } });
     }
@@ -64,6 +78,9 @@ const getDashboard = async (req, res, next) => {
           done: doneCount,
           overdue: overdueTasks.length,
           projectCount,
+          projectsNotStarted,
+          projectsInProgress,
+          projectsDone,
           teamCount,
         },
         priority: {
@@ -73,6 +90,7 @@ const getDashboard = async (req, res, next) => {
         },
         overdueTasks,
         recentTasks,
+        recentActivity,
       },
     });
   } catch (error) {

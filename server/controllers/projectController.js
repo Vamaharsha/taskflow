@@ -2,12 +2,15 @@ const { Project, User, ProjectMember, Task } = require('../models');
 
 const createProject = async (req, res, next) => {
   try {
-    const { name, description, color } = req.body;
+    const { name, description, color, type, deadline, status, members } = req.body;
 
     const project = await Project.create({
       name,
       description,
       color,
+      type: type || 'custom',
+      deadline: deadline || null,
+      status: status || 'Not Started',
       ownerId: req.user.id,
     });
 
@@ -17,6 +20,19 @@ const createProject = async (req, res, next) => {
       userId: req.user.id,
       role: 'admin'
     });
+
+    // Add other members if provided
+    if (members && Array.isArray(members)) {
+      for (const memberId of members) {
+        if (memberId !== req.user.id) {
+          await ProjectMember.create({
+            projectId: project.id,
+            userId: memberId,
+            role: 'member'
+          });
+        }
+      }
+    }
 
     res.status(201).json({ success: true, data: project });
   } catch (error) {
@@ -103,7 +119,29 @@ const updateProject = async (req, res, next) => {
       throw error;
     }
 
-    await project.update(req.body);
+    const { members, ...updateData } = req.body;
+    await project.update(updateData);
+
+    if (members && Array.isArray(members)) {
+      // Don't remove the owner
+      await ProjectMember.destroy({
+        where: {
+          projectId: project.id,
+          userId: { [require('sequelize').Op.ne]: project.ownerId }
+        }
+      });
+
+      for (const memberId of members) {
+        if (memberId !== project.ownerId) {
+          await ProjectMember.create({
+            projectId: project.id,
+            userId: memberId,
+            role: 'member'
+          });
+        }
+      }
+    }
+
     res.json({ success: true, data: project });
   } catch (error) {
     next(error);
