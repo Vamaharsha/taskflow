@@ -30,8 +30,8 @@ export function AuthProvider({ children }) {
     return data.data.user
   }
 
-  const signup = async (name, email, password) => {
-    const { data } = await api.post('/auth/signup', { name, email, password })
+  const signup = async (name, email, password, role) => {
+    const { data } = await api.post('/auth/signup', { name, email, password, role })
     localStorage.setItem('accessToken', data.data.accessToken)
     localStorage.setItem('refreshToken', data.data.refreshToken)
     setUser(data.data.user)
