@@ -6,6 +6,12 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
+// Fallback secrets if not set in environment (e.g., on Railway)
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'taskflow_default_secret_key_123!';
+  process.env.JWT_REFRESH_SECRET = 'taskflow_default_refresh_key_123!';
+}
+
 const errorHandler = require('./middleware/errorHandler');
 
 // Route imports
