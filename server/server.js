@@ -33,6 +33,7 @@ sequelize.sync({ alter: true })
 
 // --------------- Security Middleware ---------------
 app.use(helmet());
+app.set('trust proxy', 1); // Required for Railway reverse proxy rate limiting
 
 // CORS — allow frontend origin
 app.use(

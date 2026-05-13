@@ -52,7 +52,7 @@ export default function Projects() {
       {projects.length > 0 ? (
         <div className="projects-grid">
           {projects.map(p => (
-            <div key={p._id} className="project-card" onClick={() => navigate(`/projects/${p._id}`)} style={{ '--card-color': p.color }}>
+            <div key={p.id} className="project-card" onClick={() => navigate(`/projects/${p.id}`)} style={{ '--card-color': p.color }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: p.color }} />
               <div className="project-name">{p.name}</div>
               <div className="project-desc">{p.description || 'No description'}</div>

@@ -59,7 +59,7 @@ export default function Tasks() {
               {tasks.map(t => {
                 const overdue = t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
                 return (
-                  <tr key={t._id}>
+                  <tr key={t.id}>
                     <td style={{ fontWeight: 500 }}>{t.title}</td>
                     <td><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: t.project?.color || '#6366f1' }} />{t.project?.name}</span></td>
                     <td><span className={`badge badge-${t.status}`}>{t.status}</span></td>
@@ -75,7 +75,7 @@ export default function Tasks() {
                     </td>
                     <td>
                       {t.status !== 'done' && (
-                        <select className="form-select" style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }} value={t.status} onChange={e => updateStatus(t._id, e.target.value)}>
+                        <select className="form-select" style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }} value={t.status} onChange={e => updateStatus(t.id, e.target.value)}>
                           <option value="todo">To Do</option>
                           <option value="in-progress">In Progress</option>
                           <option value="done">Done</option>

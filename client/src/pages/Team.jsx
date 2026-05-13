@@ -32,7 +32,7 @@ export default function Team() {
             <thead><tr><th>Member</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
             <tbody>
               {users.map(u => (
-                <tr key={u._id}>
+                <tr key={u.id}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div className="user-avatar" style={{ width: 32, height: 32, fontSize: '0.75rem' }}>{u.name?.[0]?.toUpperCase()}</div>
@@ -42,7 +42,7 @@ export default function Team() {
                   <td style={{ color: 'var(--text-secondary)' }}>{u.email}</td>
                   <td><span className={`badge badge-${u.role}`}>{u.role}</span></td>
                   <td>
-                    <select className="form-select" style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }} value={u.role} onChange={e => updateRole(u._id, e.target.value)}>
+                    <select className="form-select" style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8rem' }} value={u.role} onChange={e => updateRole(u.id, e.target.value)}>
                       <option value="admin">Admin</option>
                       <option value="member">Member</option>
                     </select>

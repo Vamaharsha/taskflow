@@ -25,7 +25,10 @@ export default function ProjectDetail() {
       const [pRes, tRes] = await Promise.all([api.get(`/projects/${id}`), api.get(`/tasks?project=${id}`)])
       setProject(pRes.data.data)
       setTasks(tRes.data.data)
-    } catch { toast.error('Failed to load project') }
+    } catch (err) { 
+      console.error('Project load error:', err)
+      toast.error(err.response?.data?.message || 'Failed to load project') 
+    }
     finally { setLoading(false) }
   }
 
@@ -63,14 +66,24 @@ export default function ProjectDetail() {
 
   const deleteTask = async (taskId) => {
     if (!confirm('Delete this task?')) return
-    try { await api.delete(`/tasks/${taskId}`); toast.success('Task deleted'); fetchData() }
-    catch { toast.error('Failed to delete') }
+    try { 
+      await api.delete(`/tasks/${taskId}`); 
+      toast.success('Task deleted'); 
+      fetchData() 
+    } catch (err) { 
+      toast.error(err.response?.data?.message || 'Failed to delete task') 
+    }
   }
 
   const deleteProject = async () => {
     if (!confirm('Delete this project and all its tasks?')) return
-    try { await api.delete(`/projects/${id}`); toast.success('Project deleted'); navigate('/projects') }
-    catch { toast.error('Failed to delete') }
+    try { 
+      await api.delete(`/projects/${id}`); 
+      toast.success('Project deleted'); 
+      navigate('/projects') 
+    } catch (err) { 
+      toast.error(err.response?.data?.message || 'Failed to delete project') 
+    }
   }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner" /></div>
@@ -109,7 +122,7 @@ export default function ProjectDetail() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Team:</span>
           {project.members?.map(m => (
-            <div key={m.user?._id || m._id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: 20, fontSize: '0.8rem' }}>
+            <div key={m.user?.id || m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: 20, fontSize: '0.8rem' }}>
               <div className="user-avatar" style={{ width: 22, height: 22, fontSize: '0.6rem' }}>{m.user?.name?.[0] || '?'}</div>
               {m.user?.name || 'Unknown'}
               <span className={`badge badge-${m.role}`} style={{ marginLeft: 4 }}>{m.role}</span>
@@ -133,10 +146,10 @@ export default function ProjectDetail() {
               </div>
               <div className="task-list">
                 {colTasks.map(task => (
-                  <div key={task._id} className="task-card">
+                  <div key={task.id} className="task-card">
                     <div className="task-card-header">
                       <span className="task-title">{task.title}</span>
-                      {isAdmin && <button className="btn-ghost" style={{ padding: 4 }} onClick={() => deleteTask(task._id)}><Trash2 size={14} /></button>}
+                      {isAdmin && <button className="btn-ghost" style={{ padding: 4 }} onClick={() => deleteTask(task.id)}><Trash2 size={14} /></button>}
                     </div>
                     {task.description && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 8 }}>{task.description}</p>}
                     <div className="task-meta">
@@ -150,8 +163,8 @@ export default function ProjectDetail() {
                     </div>
                     {task.status !== 'done' && (
                       <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                        {task.status === 'todo' && <button className="btn btn-secondary btn-sm" onClick={() => updateTaskStatus(task._id, 'in-progress')}>Start</button>}
-                        {task.status === 'in-progress' && <button className="btn btn-secondary btn-sm" onClick={() => updateTaskStatus(task._id, 'done')}>Complete</button>}
+                        {task.status === 'todo' && <button className="btn btn-secondary btn-sm" onClick={() => updateTaskStatus(task.id, 'in-progress')}>Start</button>}
+                        {task.status === 'in-progress' && <button className="btn btn-secondary btn-sm" onClick={() => updateTaskStatus(task.id, 'done')}>Complete</button>}
                       </div>
                     )}
                   </div>
@@ -179,7 +192,7 @@ export default function ProjectDetail() {
                 <div className="form-group"><label className="form-label">Assign To</label>
                   <select className="form-select" value={taskForm.assignedTo} onChange={e => setTaskForm({...taskForm, assignedTo: e.target.value})}>
                     <option value="">Unassigned</option>
-                    {project.members?.map(m => <option key={m.user?._id} value={m.user?._id}>{m.user?.name}</option>)}
+                    {project.members?.map(m => <option key={m.user?.id} value={m.user?.id}>{m.user?.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group"><label className="form-label">Due Date</label><input type="date" className="form-input" value={taskForm.dueDate} onChange={e => setTaskForm({...taskForm, dueDate: e.target.value})} /></div>

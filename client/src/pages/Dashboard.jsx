@@ -63,7 +63,7 @@ export default function Dashboard() {
           {data?.overdueTasks?.length > 0 ? (
             <div className="task-list">
               {data.overdueTasks.map(task => (
-                <div key={task._id} className="task-card">
+                <div key={task.id} className="task-card">
                   <div className="task-card-header">
                     <span className="task-title">{task.title}</span>
                     <span className="badge badge-overdue">Overdue</span>
@@ -86,7 +86,7 @@ export default function Dashboard() {
           {data?.recentTasks?.length > 0 ? (
             <div className="task-list">
               {data.recentTasks.map(task => (
-                <div key={task._id} className="task-card">
+                <div key={task.id} className="task-card">
                   <div className="task-card-header">
                     <span className="task-title">{task.title}</span>
                     <span className={`badge badge-${task.status}`}>{task.status}</span>
