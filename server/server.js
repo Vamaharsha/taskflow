@@ -6,7 +6,6 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
-const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
 // Route imports
@@ -18,8 +17,13 @@ const userRoutes = require('./routes/users');
 
 const app = express();
 
-// Connect to MongoDB
-connectDB();
+const sequelize = require('./config/database');
+require('./models'); // Init associations
+
+// Sync SQLite Database
+sequelize.sync({ alter: true })
+  .then(() => console.log('✅ SQLite DB synced'))
+  .catch(err => console.error('❌ DB Sync Error:', err));
 
 // --------------- Security Middleware ---------------
 app.use(helmet());

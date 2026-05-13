@@ -1,64 +1,57 @@
-const Task = require('../models/Task');
-const Project = require('../models/Project');
-const User = require('../models/User');
+const { Task, Project, User, ProjectMember } = require('../models');
+const { Op } = require('sequelize');
 
-// @desc    Get dashboard stats
-// @route   GET /api/dashboard
-// @access  Private
 const getDashboard = async (req, res, next) => {
   try {
     const isAdmin = req.user.role === 'admin';
     const userId = req.user.id;
 
-    // Base filter: admins see everything, members see only their tasks
-    const taskFilter = isAdmin ? {} : { assignedTo: userId };
+    const taskWhere = isAdmin ? {} : { assignedToId: userId };
 
-    // Task counts by status
-    const [todoCount, inProgressCount, doneCount] = await Promise.all([
-      Task.countDocuments({ ...taskFilter, status: 'todo' }),
-      Task.countDocuments({ ...taskFilter, status: 'in-progress' }),
-      Task.countDocuments({ ...taskFilter, status: 'done' }),
-    ]);
-
+    const todoCount = await Task.count({ where: { ...taskWhere, status: 'todo' } });
+    const inProgressCount = await Task.count({ where: { ...taskWhere, status: 'in-progress' } });
+    const doneCount = await Task.count({ where: { ...taskWhere, status: 'done' } });
+    
     const totalTasks = todoCount + inProgressCount + doneCount;
 
-    // Overdue tasks
-    const overdueTasks = await Task.find({
-      ...taskFilter,
-      status: { $ne: 'done' },
-      dueDate: { $lt: new Date(), $ne: null },
-    })
-      .populate('assignedTo', 'name email avatar')
-      .populate('project', 'name color')
-      .sort('dueDate')
-      .limit(10);
+    const overdueTasks = await Task.findAll({
+      where: {
+        ...taskWhere,
+        status: { [Op.ne]: 'done' },
+        dueDate: { [Op.lt]: new Date(), [Op.ne]: null },
+      },
+      include: [
+        { model: User, as: 'assignedTo', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: Project, as: 'project', attributes: ['id', 'name', 'color'] }
+      ],
+      order: [['dueDate', 'ASC']],
+      limit: 10
+    });
 
-    // Recent tasks
-    const recentTasks = await Task.find(taskFilter)
-      .populate('assignedTo', 'name email avatar')
-      .populate('project', 'name color')
-      .sort('-createdAt')
-      .limit(5);
+    const recentTasks = await Task.findAll({
+      where: taskWhere,
+      include: [
+        { model: User, as: 'assignedTo', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: Project, as: 'project', attributes: ['id', 'name', 'color'] }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 5
+    });
 
-    // Tasks by priority
-    const [highPriority, mediumPriority, lowPriority] = await Promise.all([
-      Task.countDocuments({ ...taskFilter, priority: 'high', status: { $ne: 'done' } }),
-      Task.countDocuments({ ...taskFilter, priority: 'medium', status: { $ne: 'done' } }),
-      Task.countDocuments({ ...taskFilter, priority: 'low', status: { $ne: 'done' } }),
-    ]);
+    const highPriority = await Task.count({ where: { ...taskWhere, priority: 'high', status: { [Op.ne]: 'done' } } });
+    const mediumPriority = await Task.count({ where: { ...taskWhere, priority: 'medium', status: { [Op.ne]: 'done' } } });
+    const lowPriority = await Task.count({ where: { ...taskWhere, priority: 'low', status: { [Op.ne]: 'done' } } });
 
-    // Project count
     let projectCount;
     if (isAdmin) {
-      projectCount = await Project.countDocuments();
+      projectCount = await Project.count();
     } else {
-      projectCount = await Project.countDocuments({ 'members.user': userId });
+      projectCount = await ProjectMember.count({ where: { userId } });
     }
 
-    // Team member count (admin only)
     let teamCount = 0;
     if (isAdmin) {
-      teamCount = await User.countDocuments();
+      teamCount = await User.count();
     }
 
     res.json({

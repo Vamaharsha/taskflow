@@ -1,57 +1,26 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-const projectSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, 'Project name is required'],
-      trim: true,
-      maxlength: [100, 'Project name cannot exceed 100 characters'],
-    },
-    description: {
-      type: String,
-      default: '',
-      maxlength: [500, 'Description cannot exceed 500 characters'],
-    },
-    owner: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    members: [
-      {
-        user: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
-        },
-        role: {
-          type: String,
-          enum: ['admin', 'member'],
-          default: 'member',
-        },
-        joinedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-    color: {
-      type: String,
-      default: '#6366f1', // Default indigo
-    },
+const Project = sequelize.define('Project', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
   },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: { len: [1, 100] }
+  },
+  description: {
+    type: DataTypes.STRING,
+    defaultValue: '',
+    validate: { len: [0, 500] }
+  },
+  color: {
+    type: DataTypes.STRING,
+    defaultValue: '#6366f1'
   }
-);
-
-// Virtual: get task count for this project
-projectSchema.virtual('tasks', {
-  ref: 'Task',
-  localField: '_id',
-  foreignField: 'project',
 });
 
-module.exports = mongoose.model('Project', projectSchema);
+module.exports = Project;

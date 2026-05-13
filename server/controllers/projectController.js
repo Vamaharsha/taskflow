@@ -1,9 +1,5 @@
-const Project = require('../models/Project');
-const User = require('../models/User');
+const { Project, User, ProjectMember, Task } = require('../models');
 
-// @desc    Create a project
-// @route   POST /api/projects
-// @access  Private (Admin)
 const createProject = async (req, res, next) => {
   try {
     const { name, description, color } = req.body;
@@ -12,8 +8,14 @@ const createProject = async (req, res, next) => {
       name,
       description,
       color,
-      owner: req.user.id,
-      members: [{ user: req.user.id, role: 'admin' }],
+      ownerId: req.user.id,
+    });
+
+    // Add creator as admin member
+    await ProjectMember.create({
+      projectId: project.id,
+      userId: req.user.id,
+      role: 'admin'
     });
 
     res.status(201).json({ success: true, data: project });
@@ -22,41 +24,50 @@ const createProject = async (req, res, next) => {
   }
 };
 
-// @desc    Get all projects for current user
-// @route   GET /api/projects
-// @access  Private
 const getProjects = async (req, res, next) => {
   try {
     let projects;
-
+    
     if (req.user.role === 'admin') {
-      // Admins see all projects
-      projects = await Project.find()
-        .populate('owner', 'name email avatar')
-        .populate('members.user', 'name email avatar')
-        .sort('-createdAt');
+      projects = await Project.findAll({
+        include: [
+          { model: User, as: 'owner', attributes: ['id', 'name', 'email', 'avatar'] },
+          { model: ProjectMember, as: 'projectMembers', include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'avatar'] }] }
+        ],
+        order: [['createdAt', 'DESC']]
+      });
     } else {
-      // Members see only projects they belong to
-      projects = await Project.find({ 'members.user': req.user.id })
-        .populate('owner', 'name email avatar')
-        .populate('members.user', 'name email avatar')
-        .sort('-createdAt');
+      projects = await Project.findAll({
+        include: [
+          { model: User, as: 'owner', attributes: ['id', 'name', 'email', 'avatar'] },
+          { model: ProjectMember, as: 'projectMembers', where: { userId: req.user.id }, include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'avatar'] }] }
+        ],
+        order: [['createdAt', 'DESC']]
+      });
     }
 
-    res.json({ success: true, data: projects });
+    // Format output to match frontend expectations
+    const formatted = projects.map(p => {
+      const pJson = p.toJSON();
+      pJson.members = pJson.projectMembers || [];
+      delete pJson.projectMembers;
+      return pJson;
+    });
+
+    res.json({ success: true, data: formatted });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get single project
-// @route   GET /api/projects/:id
-// @access  Private
 const getProject = async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id)
-      .populate('owner', 'name email avatar')
-      .populate('members.user', 'name email avatar');
+    const project = await Project.findByPk(req.params.id, {
+      include: [
+        { model: User, as: 'owner', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: ProjectMember, as: 'projectMembers', include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'avatar'] }] }
+      ]
+    });
 
     if (!project) {
       const error = new Error('Project not found');
@@ -64,11 +75,8 @@ const getProject = async (req, res, next) => {
       throw error;
     }
 
-    // Members can only see projects they belong to
     if (req.user.role !== 'admin') {
-      const isMember = project.members.some(
-        (m) => m.user._id.toString() === req.user.id
-      );
+      const isMember = project.projectMembers.some(m => m.userId === req.user.id);
       if (!isMember) {
         const error = new Error('Not authorized to view this project');
         error.statusCode = 403;
@@ -76,148 +84,103 @@ const getProject = async (req, res, next) => {
       }
     }
 
-    res.json({ success: true, data: project });
+    const formatted = project.toJSON();
+    formatted.members = formatted.projectMembers;
+    delete formatted.projectMembers;
+
+    res.json({ success: true, data: formatted });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Update project
-// @route   PUT /api/projects/:id
-// @access  Private (Admin)
 const updateProject = async (req, res, next) => {
   try {
-    const { name, description, color } = req.body;
-
-    const project = await Project.findByIdAndUpdate(
-      req.params.id,
-      { name, description, color },
-      { new: true, runValidators: true }
-    )
-      .populate('owner', 'name email avatar')
-      .populate('members.user', 'name email avatar');
-
+    const project = await Project.findByPk(req.params.id);
     if (!project) {
       const error = new Error('Project not found');
       error.statusCode = 404;
       throw error;
     }
 
+    await project.update(req.body);
     res.json({ success: true, data: project });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Delete project
-// @route   DELETE /api/projects/:id
-// @access  Private (Admin)
 const deleteProject = async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id);
-
+    const project = await Project.findByPk(req.params.id);
     if (!project) {
       const error = new Error('Project not found');
       error.statusCode = 404;
       throw error;
     }
 
-    // Also delete all tasks in this project
-    const Task = require('../models/Task');
-    await Task.deleteMany({ project: req.params.id });
-    await Project.findByIdAndDelete(req.params.id);
+    await Task.destroy({ where: { projectId: project.id } });
+    await ProjectMember.destroy({ where: { projectId: project.id } });
+    await project.destroy();
 
-    res.json({ success: true, message: 'Project and its tasks deleted' });
+    res.json({ success: true, message: 'Project deleted' });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Add member to project
-// @route   POST /api/projects/:id/members
-// @access  Private (Admin)
 const addMember = async (req, res, next) => {
   try {
     const { email, role } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email } });
     if (!user) {
-      const error = new Error('User with that email not found');
+      const error = new Error('User not found');
       error.statusCode = 404;
       throw error;
     }
 
-    const project = await Project.findById(req.params.id);
+    const project = await Project.findByPk(req.params.id);
     if (!project) {
       const error = new Error('Project not found');
       error.statusCode = 404;
       throw error;
     }
 
-    // Check if already a member
-    const alreadyMember = project.members.some(
-      (m) => m.user.toString() === user._id.toString()
-    );
-    if (alreadyMember) {
-      const error = new Error('User is already a member of this project');
+    const existing = await ProjectMember.findOne({ where: { projectId: project.id, userId: user.id } });
+    if (existing) {
+      const error = new Error('User already a member');
       error.statusCode = 400;
       throw error;
     }
 
-    project.members.push({ user: user._id, role: role || 'member' });
-    await project.save();
-
-    const updated = await Project.findById(req.params.id)
-      .populate('owner', 'name email avatar')
-      .populate('members.user', 'name email avatar');
-
-    res.json({ success: true, data: updated });
+    await ProjectMember.create({ projectId: project.id, userId: user.id, role: role || 'member' });
+    res.json({ success: true, message: 'Member added' });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Remove member from project
-// @route   DELETE /api/projects/:id/members/:userId
-// @access  Private (Admin)
 const removeMember = async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id);
-
+    const project = await Project.findByPk(req.params.id);
     if (!project) {
       const error = new Error('Project not found');
       error.statusCode = 404;
       throw error;
     }
 
-    // Can't remove the owner
-    if (project.owner.toString() === req.params.userId) {
-      const error = new Error('Cannot remove the project owner');
+    if (project.ownerId === req.params.userId) {
+      const error = new Error('Cannot remove owner');
       error.statusCode = 400;
       throw error;
     }
 
-    project.members = project.members.filter(
-      (m) => m.user.toString() !== req.params.userId
-    );
-    await project.save();
-
-    const updated = await Project.findById(req.params.id)
-      .populate('owner', 'name email avatar')
-      .populate('members.user', 'name email avatar');
-
-    res.json({ success: true, data: updated });
+    await ProjectMember.destroy({ where: { projectId: project.id, userId: req.params.userId } });
+    res.json({ success: true, message: 'Member removed' });
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = {
-  createProject,
-  getProjects,
-  getProject,
-  updateProject,
-  deleteProject,
-  addMember,
-  removeMember,
-};
+module.exports = { createProject, getProjects, getProject, updateProject, deleteProject, addMember, removeMember };

@@ -1,26 +1,20 @@
-const Task = require('../models/Task');
-const Project = require('../models/Project');
+const { Task, Project, User, ProjectMember } = require('../models');
 
-// @desc    Create a task
-// @route   POST /api/tasks
-// @access  Private (Admin)
 const createTask = async (req, res, next) => {
   try {
-    const { title, description, status, priority, project, assignedTo, dueDate } = req.body;
+    const { title, description, status, priority, dueDate } = req.body;
+    const projectId = req.body.project || req.body.projectId;
+    const assignedToId = req.body.assignedTo || req.body.assignedToId;
 
-    // Verify project exists
-    const projectDoc = await Project.findById(project);
+    const projectDoc = await Project.findByPk(projectId, { include: [{ model: ProjectMember, as: 'projectMembers' }] });
     if (!projectDoc) {
       const error = new Error('Project not found');
       error.statusCode = 404;
       throw error;
     }
 
-    // If assigning to someone, verify they're a project member
-    if (assignedTo) {
-      const isMember = projectDoc.members.some(
-        (m) => m.user.toString() === assignedTo
-      );
+    if (assignedToId) {
+      const isMember = projectDoc.projectMembers.some(m => m.userId === assignedToId);
       if (!isMember) {
         const error = new Error('Assigned user is not a member of this project');
         error.statusCode = 400;
@@ -33,16 +27,19 @@ const createTask = async (req, res, next) => {
       description,
       status,
       priority,
-      project,
-      assignedTo,
-      createdBy: req.user.id,
+      projectId,
+      assignedToId,
+      createdById: req.user.id,
       dueDate,
     });
 
-    const populated = await Task.findById(task._id)
-      .populate('assignedTo', 'name email avatar')
-      .populate('createdBy', 'name email avatar')
-      .populate('project', 'name color');
+    const populated = await Task.findByPk(task.id, {
+      include: [
+        { model: User, as: 'assignedTo', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: Project, as: 'project', attributes: ['id', 'name', 'color'] }
+      ]
+    });
 
     res.status(201).json({ success: true, data: populated });
   } catch (error) {
@@ -50,29 +47,31 @@ const createTask = async (req, res, next) => {
   }
 };
 
-// @desc    Get tasks (with filters)
-// @route   GET /api/tasks?project=xxx&status=xxx&assignedTo=xxx
-// @access  Private
 const getTasks = async (req, res, next) => {
   try {
-    const { project, status, assignedTo, priority } = req.query;
-    const filter = {};
+    const projectId = req.query.project || req.query.projectId;
+    const assignedToId = req.query.assignedTo || req.query.assignedToId;
+    const { status, priority } = req.query;
+    const where = {};
 
-    if (project) filter.project = project;
-    if (status) filter.status = status;
-    if (assignedTo) filter.assignedTo = assignedTo;
-    if (priority) filter.priority = priority;
+    if (projectId) where.projectId = projectId;
+    if (status) where.status = status;
+    if (assignedToId) where.assignedToId = assignedToId;
+    if (priority) where.priority = priority;
 
-    // Members can only see tasks assigned to them
     if (req.user.role !== 'admin') {
-      filter.assignedTo = req.user.id;
+      where.assignedToId = req.user.id;
     }
 
-    const tasks = await Task.find(filter)
-      .populate('assignedTo', 'name email avatar')
-      .populate('createdBy', 'name email avatar')
-      .populate('project', 'name color')
-      .sort('-createdAt');
+    const tasks = await Task.findAll({
+      where,
+      include: [
+        { model: User, as: 'assignedTo', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: Project, as: 'project', attributes: ['id', 'name', 'color'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json({ success: true, data: tasks, count: tasks.length });
   } catch (error) {
@@ -80,15 +79,15 @@ const getTasks = async (req, res, next) => {
   }
 };
 
-// @desc    Get single task
-// @route   GET /api/tasks/:id
-// @access  Private
 const getTask = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id)
-      .populate('assignedTo', 'name email avatar')
-      .populate('createdBy', 'name email avatar')
-      .populate('project', 'name color');
+    const task = await Task.findByPk(req.params.id, {
+      include: [
+        { model: User, as: 'assignedTo', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: Project, as: 'project', attributes: ['id', 'name', 'color'] }
+      ]
+    });
 
     if (!task) {
       const error = new Error('Task not found');
@@ -96,11 +95,7 @@ const getTask = async (req, res, next) => {
       throw error;
     }
 
-    // Members can only view tasks assigned to them
-    if (
-      req.user.role !== 'admin' &&
-      task.assignedTo?._id.toString() !== req.user.id
-    ) {
+    if (req.user.role !== 'admin' && task.assignedToId !== req.user.id) {
       const error = new Error('Not authorized to view this task');
       error.statusCode = 403;
       throw error;
@@ -112,12 +107,9 @@ const getTask = async (req, res, next) => {
   }
 };
 
-// @desc    Update a task
-// @route   PUT /api/tasks/:id
-// @access  Private
 const updateTask = async (req, res, next) => {
   try {
-    let task = await Task.findById(req.params.id);
+    const task = await Task.findByPk(req.params.id);
 
     if (!task) {
       const error = new Error('Task not found');
@@ -125,17 +117,15 @@ const updateTask = async (req, res, next) => {
       throw error;
     }
 
-    // Members can only update status of tasks assigned to them
     if (req.user.role !== 'admin') {
-      if (task.assignedTo?.toString() !== req.user.id) {
+      if (task.assignedToId !== req.user.id) {
         const error = new Error('Not authorized to update this task');
         error.statusCode = 403;
         throw error;
       }
-      // Members can only change status
       const allowedFields = ['status'];
       const updates = Object.keys(req.body);
-      const isAllowed = updates.every((field) => allowedFields.includes(field));
+      const isAllowed = updates.every(field => allowedFields.includes(field));
       if (!isAllowed) {
         const error = new Error('Members can only update task status');
         error.statusCode = 403;
@@ -143,26 +133,25 @@ const updateTask = async (req, res, next) => {
       }
     }
 
-    task = await Task.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    })
-      .populate('assignedTo', 'name email avatar')
-      .populate('createdBy', 'name email avatar')
-      .populate('project', 'name color');
+    await task.update(req.body);
+    
+    const updatedTask = await Task.findByPk(task.id, {
+      include: [
+        { model: User, as: 'assignedTo', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'createdBy', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: Project, as: 'project', attributes: ['id', 'name', 'color'] }
+      ]
+    });
 
-    res.json({ success: true, data: task });
+    res.json({ success: true, data: updatedTask });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Delete a task
-// @route   DELETE /api/tasks/:id
-// @access  Private (Admin)
 const deleteTask = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findByPk(req.params.id);
 
     if (!task) {
       const error = new Error('Task not found');
@@ -170,7 +159,7 @@ const deleteTask = async (req, res, next) => {
       throw error;
     }
 
-    await Task.findByIdAndDelete(req.params.id);
+    await task.destroy();
     res.json({ success: true, message: 'Task deleted' });
   } catch (error) {
     next(error);

@@ -1,24 +1,19 @@
-const User = require('../models/User');
+const { User } = require('../models');
 const { generateAccessToken, generateRefreshToken } = require('../utils/generateToken');
 const jwt = require('jsonwebtoken');
 
-// @desc    Register a new user
-// @route   POST /api/auth/signup
-// @access  Public
 const signup = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       const error = new Error('An account with that email already exists');
       error.statusCode = 400;
       throw error;
     }
 
-    // First user becomes admin automatically
-    const userCount = await User.countDocuments();
+    const userCount = await User.count();
     const assignedRole = userCount === 0 ? 'admin' : role || 'member';
 
     const user = await User.create({
@@ -28,19 +23,13 @@ const signup = async (req, res, next) => {
       role: assignedRole,
     });
 
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
 
     res.status(201).json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-        },
+        user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
         accessToken,
         refreshToken,
       },
@@ -50,9 +39,6 @@ const signup = async (req, res, next) => {
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -63,8 +49,7 @@ const login = async (req, res, next) => {
       throw error;
     }
 
-    // Find user and include password for comparison
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.scope('withPassword').findOne({ where: { email } });
     if (!user) {
       const error = new Error('Invalid email or password');
       error.statusCode = 401;
@@ -78,19 +63,13 @@ const login = async (req, res, next) => {
       throw error;
     }
 
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
 
     res.json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-        },
+        user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
         accessToken,
         refreshToken,
       },
@@ -100,24 +79,15 @@ const login = async (req, res, next) => {
   }
 };
 
-// @desc    Get current user profile
-// @route   GET /api/auth/me
-// @access  Private
 const getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
-    res.json({
-      success: true,
-      data: user,
-    });
+    const user = await User.findByPk(req.user.id);
+    res.json({ success: true, data: user });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Refresh access token
-// @route   POST /api/auth/refresh
-// @access  Public
 const refreshToken = async (req, res, next) => {
   try {
     const { refreshToken: token } = req.body;
@@ -129,7 +99,7 @@ const refreshToken = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-    const user = await User.findById(decoded.id);
+    const user = await User.findByPk(decoded.id);
 
     if (!user) {
       const error = new Error('User not found');
@@ -137,12 +107,8 @@ const refreshToken = async (req, res, next) => {
       throw error;
     }
 
-    const newAccessToken = generateAccessToken(user._id);
-
-    res.json({
-      success: true,
-      data: { accessToken: newAccessToken },
-    });
+    const newAccessToken = generateAccessToken(user.id);
+    res.json({ success: true, data: { accessToken: newAccessToken } });
   } catch (error) {
     next(error);
   }
