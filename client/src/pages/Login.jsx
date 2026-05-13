@@ -60,6 +60,7 @@ export default function Auth() {
 
   return (
     <div className="auth-page">
+      <div className="ambient-orb" />
       <div className="auth-card">
         <div className="auth-tabs">
           <button type="button" className={`auth-tab ${isLogin ? 'active' : ''}`} onClick={() => isLogin || toggleMode()}>Login</button>

@@ -43,7 +43,7 @@ export default function App() {
       <AuthProvider>
         <AppRoutes />
         <Toaster position="top-right" toastOptions={{
-          style: { background: '#111118', color: '#fff', border: '1px solid #1e1e2e', fontFamily: '-apple-system, sans-serif', fontSize: '0.9rem' },
+          style: { background: 'rgba(22, 22, 30, 0.95)', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(10px)', fontFamily: 'Inter, sans-serif', fontSize: '0.95rem' },
         }} />
       </AuthProvider>
     </BrowserRouter>

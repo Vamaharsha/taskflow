@@ -17,13 +17,14 @@ export default function Layout() {
 
   return (
     <>
+      <div className="ambient-orb" />
       <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
         {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
       </button>
       <div className="app-layout">
         <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
           <div className="sidebar-logo">
-            <svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#3b82f6"/><path d="M8 14l4 4 8-8" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg viewBox="0 0 28 28" fill="none"><defs><linearGradient id="brand" x1="0" y1="0" x2="28" y2="28"><stop offset="0%" stopColor="#6366f1"/><stop offset="50%" stopColor="#c084fc"/><stop offset="100%" stopColor="#ec4899"/></linearGradient></defs><rect width="28" height="28" rx="8" fill="url(#brand)"/><path d="M8 14l4 4 8-8" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <h1>TaskFlow</h1>
           </div>
 
