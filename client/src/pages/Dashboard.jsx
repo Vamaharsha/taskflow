@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
-import { LayoutDashboard, CheckCircle, Clock, AlertTriangle, Users, Folder, Activity } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function Dashboard() {
@@ -13,85 +12,70 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get('/dashboard')
-      .then(res => setData(res.data.data))
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    api.get('/dashboard').then(r => setData(r.data.data)).catch(console.error).finally(() => setLoading(false))
   }, [])
 
   if (loading) return <div className="loading-page"><div className="spinner" /></div>
   if (!data) return <div className="empty-state"><h3>Failed to load dashboard</h3></div>
 
+  const s = data.stats
+
   return (
     <div>
       <div className="page-header">
         <div>
-          <h2>Welcome back, {user?.name?.split(' ')[0]}</h2>
-          <p>Here's what's happening in your workspace today.</p>
+          <h2>Dashboard</h2>
+          <p>{isAdmin ? 'Workspace overview' : `Your assigned work`}</p>
         </div>
       </div>
 
       <div className="stats-grid">
         <div className="stat-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <div className="stat-icon" style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}><Folder size={24} /></div>
-            <div>
-              <div className="stat-value">{data.stats.projectCount}</div>
-              <div className="stat-label">Total Projects</div>
-            </div>
-          </div>
+          <div className="stat-eyebrow">Projects</div>
+          <div className="stat-value">{s.projectCount}</div>
+          <div className="stat-label">Total</div>
         </div>
-
         {isAdmin && (
           <>
             <div className="stat-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                <div className="stat-icon" style={{ background: 'rgba(75, 123, 237, 0.1)', color: 'var(--info)' }}><Activity size={24} /></div>
-                <div>
-                  <div className="stat-value">{data.stats.projectsInProgress}</div>
-                  <div className="stat-label">Active Projects</div>
-                </div>
-              </div>
+              <div className="stat-eyebrow">Active</div>
+              <div className="stat-value" style={{ color: 'var(--accent-text)' }}>{s.projectsInProgress}</div>
+              <div className="stat-label">In progress</div>
             </div>
             <div className="stat-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                <div className="stat-icon" style={{ background: 'rgba(46, 159, 107, 0.1)', color: 'var(--success)' }}><CheckCircle size={24} /></div>
-                <div>
-                  <div className="stat-value">{data.stats.projectsDone}</div>
-                  <div className="stat-label">Completed Projects</div>
-                </div>
-              </div>
+              <div className="stat-eyebrow">Completed</div>
+              <div className="stat-value" style={{ color: 'var(--success)' }}>{s.projectsDone}</div>
+              <div className="stat-label">Done</div>
             </div>
           </>
         )}
-
         <div className="stat-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <div className="stat-icon" style={{ background: 'rgba(226, 78, 78, 0.1)', color: 'var(--danger)' }}><AlertTriangle size={24} /></div>
-            <div>
-              <div className="stat-value">{data.stats.overdue}</div>
-              <div className="stat-label">Overdue Tasks</div>
-            </div>
-          </div>
+          <div className="stat-eyebrow">Tasks</div>
+          <div className="stat-value">{s.totalTasks}</div>
+          <div className="stat-label">{s.todo} todo · {s.inProgress} active · {s.done} done</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-eyebrow">Overdue</div>
+          <div className="stat-value" style={{ color: s.overdue > 0 ? 'var(--danger)' : 'var(--text-primary)' }}>{s.overdue}</div>
+          <div className="stat-label">Past deadline</div>
         </div>
       </div>
 
       <div className="dashboard-grid">
-        {/* Left Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {isAdmin && data.recentActivity && data.recentActivity.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {isAdmin && data.recentActivity?.length > 0 && (
             <div className="card">
-              <h3 style={{ fontSize: '1.1rem', marginBottom: 16 }}>Recent Projects Activity</h3>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', marginBottom: 16 }}>Recent activity</h3>
               <div className="task-list">
-                {data.recentActivity.map(project => (
-                  <div key={project.id} className="task-card" onClick={() => navigate(`/projects/${project.id}`)}>
+                {data.recentActivity.map(p => (
+                  <div key={p.id} className="task-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/projects/${p.id}`)}>
                     <div className="task-card-header">
-                      <span className="task-title">{project.name}</span>
-                      <span className={`badge badge-${project.status === 'Done' ? 'done' : project.status === 'In Progress' ? 'in-progress' : 'todo'}`}>{project.status}</span>
+                      <span className="task-title">{p.name}</span>
+                      <span className={`badge badge-${p.status === 'Done' ? 'done' : p.status === 'In Progress' ? 'in-progress' : 'todo'}`}>{p.status}</span>
                     </div>
                     <div className="task-meta">
-                      <span>Updated {format(new Date(project.updatedAt), 'MMM d, h:mm a')}</span>
-                      <span style={{ textTransform: 'capitalize' }}>• {project.type}</span>
+                      <span>{format(new Date(p.updatedAt), 'MMM d, h:mm a')}</span>
+                      <span style={{ textTransform: 'capitalize' }}>· {p.type}</span>
                     </div>
                   </div>
                 ))}
@@ -100,53 +84,48 @@ export default function Dashboard() {
           )}
 
           <div className="card">
-            <h3 style={{ fontSize: '1.1rem', marginBottom: 16 }}>Your Overdue Tasks</h3>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', marginBottom: 16 }}>Overdue</h3>
             {data.overdueTasks?.length > 0 ? (
               <div className="task-list">
-                {data.overdueTasks.map(task => (
-                  <div key={task.id} className="task-card" style={{ borderLeft: '3px solid var(--danger)' }}>
+                {data.overdueTasks.map(t => (
+                  <div key={t.id} className="task-card" style={{ borderLeftColor: 'var(--danger)' }}>
                     <div className="task-card-header">
-                      <span className="task-title">{task.title}</span>
+                      <span className="task-title">{t.title}</span>
                       <span className="badge badge-overdue">Overdue</span>
                     </div>
                     <div className="task-meta">
-                      <span style={{ color: 'var(--danger)' }}>Due {format(new Date(task.dueDate), 'MMM d')}</span>
-                      {task.project && <span>• {task.project.name}</span>}
+                      <span style={{ color: 'var(--danger)' }}>Due {format(new Date(t.dueDate), 'MMM d')}</span>
+                      {t.project && <span>· {t.project.name}</span>}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="empty-state" style={{ padding: '24px 12px' }}>
-                <p>No overdue tasks! You're all caught up.</p>
-              </div>
+              <div className="empty-state" style={{ padding: '20px 0' }}><p>No overdue tasks</p></div>
             )}
           </div>
         </div>
 
-        {/* Right Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
-            <h3 style={{ fontSize: '1.1rem', marginBottom: 16 }}>Recent Tasks</h3>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', marginBottom: 16 }}>Recent tasks</h3>
             {data.recentTasks?.length > 0 ? (
               <div className="task-list">
-                {data.recentTasks.map(task => (
-                  <div key={task.id} className="task-card">
+                {data.recentTasks.map(t => (
+                  <div key={t.id} className="task-card">
                     <div className="task-card-header">
-                      <span className="task-title">{task.title}</span>
-                      <span className={`badge badge-${task.status}`}>{task.status}</span>
+                      <span className="task-title">{t.title}</span>
+                      <span className={`badge badge-${t.status}`}>{t.status}</span>
                     </div>
                     <div className="task-meta">
-                      <span className={`badge badge-${task.priority}`}>{task.priority}</span>
-                      {task.project && <span>• {task.project.name}</span>}
+                      <span className={`badge badge-${t.priority}`}>{t.priority}</span>
+                      {t.project && <span>· {t.project.name}</span>}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="empty-state" style={{ padding: '24px 12px' }}>
-                <p>No recent tasks found.</p>
-              </div>
+              <div className="empty-state" style={{ padding: '20px 0' }}><p>No recent tasks</p></div>
             )}
           </div>
         </div>

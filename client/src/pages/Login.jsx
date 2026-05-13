@@ -2,112 +2,113 @@ import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Loader2 } from 'lucide-react'
-import toast from 'react-hot-toast'
 
 export default function Auth() {
   const { login, signup } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  
+
   const [isLogin, setIsLogin] = useState(location.pathname !== '/signup')
   const [role, setRole] = useState('member')
-  
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' })
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
     setIsLogin(location.pathname !== '/signup')
-    setError('')
+    setErrors({})
   }, [location.pathname])
 
   const toggleMode = () => {
-    setError('')
+    setErrors({})
+    setForm({ email: '', password: '', confirmPassword: '' })
     navigate(isLogin ? '/signup' : '/login', { replace: true })
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError('')
-    
+    setErrors({})
+
     if (!isLogin && form.password !== form.confirmPassword) {
-      return setError('Passwords do not match')
+      return setErrors({ confirmPassword: 'Passwords do not match' })
     }
 
     setLoading(true)
     try {
       if (isLogin) {
         await login(form.email, form.password)
-        toast.success('Welcome back!')
       } else {
-        await signup(form.name || form.email.split('@')[0], form.email, form.password, role)
-        toast.success('Account created!')
+        await signup(form.email.split('@')[0], form.email, form.password, role)
       }
     } catch (err) {
       const msg = err.response?.data?.message?.toLowerCase() || ''
-      if (!isLogin && msg.includes('exists')) {
-        setError('This email is already registered')
+      if (!isLogin && (msg.includes('exists') || msg.includes('unique'))) {
+        setErrors({ email: 'An account with this email already exists' })
       } else if (isLogin && (msg.includes('invalid') || msg.includes('incorrect') || msg.includes('found'))) {
-        setError('Incorrect password or email')
+        setErrors({ password: 'Incorrect password' })
       } else {
-        setError(err.response?.data?.message || 'Authentication failed')
+        setErrors({ password: err.response?.data?.message || 'Authentication failed' })
       }
     } finally {
       setLoading(false)
     }
   }
 
+  const clearField = (field) => {
+    setErrors(prev => { const n = {...prev}; delete n[field]; return n })
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-card">
-        
         <div className="auth-tabs">
-          <button type="button" className={`auth-tab ${isLogin ? 'active' : ''}`} onClick={() => !isLogin && toggleMode()}>Log In</button>
-          <button type="button" className={`auth-tab ${!isLogin ? 'active' : ''}`} onClick={() => isLogin && toggleMode()}>Sign Up</button>
+          <button type="button" className={`auth-tab ${isLogin ? 'active' : ''}`} onClick={() => isLogin || toggleMode()}>Login</button>
+          <button type="button" className={`auth-tab ${!isLogin ? 'active' : ''}`} onClick={() => !isLogin || toggleMode()}>Sign Up</button>
         </div>
 
         <div className="auth-header">
-          <h1>{isLogin ? 'Welcome back' : 'Create an account'}</h1>
-          <p>{isLogin ? 'Sign in to your TaskFlow workspace' : 'Join TaskFlow to manage your projects'}</p>
+          <h1>{isLogin ? 'Sign in' : 'Create account'}</h1>
+          <p>{isLogin ? 'Enter your credentials to continue' : 'Set up your TaskFlow workspace'}</p>
         </div>
 
         {!isLogin && (
           <div className="role-toggle">
             <button type="button" className={`role-btn ${role === 'admin' ? 'active' : ''}`} onClick={() => setRole('admin')}>
-              <div className="role-icon">👑</div>
-              <div className="role-text">Admin</div>
+              <div className="role-pill" />
+              <span className="role-label">Admin</span>
             </button>
             <button type="button" className={`role-btn ${role === 'member' ? 'active' : ''}`} onClick={() => setRole('member')}>
-              <div className="role-icon">👤</div>
-              <div className="role-text">Member</div>
+              <div className="role-pill" />
+              <span className="role-label">Member</span>
             </button>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Email</label>
-            <input type="email" className={`form-input ${error.includes('email') || error.includes('Incorrect') ? 'input-error' : ''}`} placeholder="you@example.com" value={form.email} onChange={e => {setForm({...form, email: e.target.value}); setError('')}} required />
+            <input type="email" className={`form-input ${errors.email ? 'input-error' : ''}`} placeholder="you@company.com" value={form.email} onChange={e => { setForm({...form, email: e.target.value}); clearField('email') }} required />
+            {errors.email && <span className="inline-error">{errors.email}</span>}
           </div>
 
           <div className="form-group">
             <label className="form-label">Password</label>
-            <input type="password" className={`form-input ${error.includes('password') || error.includes('match') || error.includes('Incorrect') ? 'input-error' : ''}`} placeholder="••••••••" value={form.password} onChange={e => {setForm({...form, password: e.target.value}); setError('')}} required minLength={6} />
-            {error && <span className="inline-error">{error}</span>}
+            <input type="password" className={`form-input ${errors.password ? 'input-error' : ''}`} placeholder="••••••••" value={form.password} onChange={e => { setForm({...form, password: e.target.value}); clearField('password') }} required minLength={6} />
+            {errors.password && <span className="inline-error">{errors.password}</span>}
           </div>
 
           {!isLogin && (
             <div className="form-group">
               <label className="form-label">Confirm Password</label>
-              <input type="password" className={`form-input ${error.includes('match') ? 'input-error' : ''}`} placeholder="••••••••" value={form.confirmPassword} onChange={e => {setForm({...form, confirmPassword: e.target.value}); setError('')}} required minLength={6} />
+              <input type="password" className={`form-input ${errors.confirmPassword ? 'input-error' : ''}`} placeholder="••••••••" value={form.confirmPassword} onChange={e => { setForm({...form, confirmPassword: e.target.value}); clearField('confirmPassword') }} required minLength={6} />
+              {errors.confirmPassword && <span className="inline-error">{errors.confirmPassword}</span>}
             </div>
           )}
 
           <button type="submit" className="btn btn-primary btn-auth" disabled={loading}>
-            {loading ? <Loader2 size={18} className="spinner" /> : (isLogin ? 'Sign In' : 'Create Account')}
+            {loading ? <Loader2 size={16} className="spinner" /> : (isLogin ? 'Sign in' : 'Create account')}
           </button>
         </form>
-
       </div>
     </div>
   )
